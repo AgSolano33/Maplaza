@@ -1,15 +1,22 @@
 {
-  "name": "maplaza",
+  "name": "maplasa",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --import ./tests/register.js --test tests/*.test.js",
+    "seed": "node scripts/seed.js"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "mongoose": "^9.11.2",
     "next": "16.4.2",
+    "next-auth": "^5.0.0-beta.32",
+    "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
@@ -17,6 +24,7 @@
     "@tailwindcss/turbopack": "^4",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
+    "mongodb-memory-server": "^11.3.0",
     "tailwindcss": "^4"
   },
   "packageManager": "yarn@1.22.22"
