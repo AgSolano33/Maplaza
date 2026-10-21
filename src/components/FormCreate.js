@@ -64,7 +64,7 @@ export default function FormCreate() {
         }),
       });
       setDirty(false);
-      router.push(`/formularios/${created.id}?paso=preguntas`);
+      router.push(`/formularios/${created.id}/editar?paso=preguntas`);
     } catch (createError) {
       setError(createError.message);
       setFields(createError.fields || {});

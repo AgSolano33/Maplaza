@@ -307,7 +307,10 @@ export default function FormEditor({ formId }) {
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <WizardSteps current={step} onPick={goTo} />
-          <button type="button" className={btn} disabled={pending} onClick={leave}>{pending ? "Guardando…" : "Salir"}</button>
+          <div className="flex gap-2">
+            <Link href={`/formularios/${formId}`} className={btn}>Ficha</Link>
+            <button type="button" className={btn} disabled={pending} onClick={leave}>{pending ? "Guardando…" : "Salir"}</button>
+          </div>
         </div>
         <div className="flex flex-col gap-3 rounded-[16px] border border-line bg-white px-4 py-3 shadow-[0_7px_28px_rgba(38,61,100,0.04)] sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
@@ -334,7 +337,7 @@ export default function FormEditor({ formId }) {
                     if (!stored) return;
                     const copy = await api(`/api/forms/${formId}/duplicate`, { method: "POST" });
                     setDirty(false);
-                    router.push(`/formularios/${copy.id}?paso=preguntas`);
+                    router.push(`/formularios/${copy.id}/editar?paso=preguntas`);
                   }}>Duplicar</MenuButton>
                   {meta?.status === "published" ? <MenuButton onClick={() => act(`/api/forms/${formId}/close`, "¿Cerrar la recepción de respuestas?")}>Cerrar recepción</MenuButton> : null}
                   {meta?.status === "closed" ? <MenuButton onClick={() => act(`/api/forms/${formId}/reopen`)}>Reabrir recepción</MenuButton> : null}
@@ -981,7 +984,7 @@ function resizeImage(file, maxEdge) {
 
 function PublishStep({ formId, draft, meta, areas, recruitment, linkArea, linkVersion, pending, publishDisabled, onArea, onVersion, onRefresh, onError, onPublish }) {
   const published = Boolean(meta?.publishedVersion);
-  const href = recruitment ? `/formularios/${formId}/resultados` : `/clima?formId=${formId}`;
+  const href = `/formularios/${formId}#respuestas`;
   return (
     <div className="grid items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
       <section className="rounded-[16px] border border-line bg-white p-5 shadow-[0_7px_28px_rgba(38,61,100,0.05)]">

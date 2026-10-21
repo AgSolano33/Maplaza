@@ -1,13 +1,12 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { MODALITY_LABELS, STATUS_LABELS } from "@/domain/constants";
 import { formatDateTime } from "@/domain/format";
 import { api } from "@/lib/client";
 import { btn, btnPrimary, card, fieldClass } from "./styles";
-import { Empty, ErrorNote, PageHeader, Pill, StatusPill } from "./ui";
+import { Empty, ErrorNote, PageHeader, StatusPill } from "./ui";
 
 export default function FormLibrary() {
   const [items, setItems] = useState(null);
@@ -17,7 +16,6 @@ export default function FormLibrary() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
-  const [copiedId, setCopiedId] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams({ page: String(page) });
@@ -44,14 +42,14 @@ export default function FormLibrary() {
       <PageHeader
         eyebrow="Biblioteca"
         title="Formularios"
-        subtitle="Evaluaciones para personas candidatas y encuestas anónimas para las áreas."
+        subtitle="Elige un formulario para ver su información y las respuestas."
         actions={<Link href="/formularios/nuevo" className={btnPrimary}>Nuevo formulario</Link>}
       />
       <ErrorNote>{error}</ErrorNote>
       <div className="mb-4 flex flex-wrap gap-2">
         <input className={`${fieldClass} max-w-xs`} placeholder="Buscar por título" value={q} onChange={(event) => { setPage(1); setQ(event.target.value); }} />
-        <select className={`${fieldClass} max-w-[200px]`} value={modality} onChange={(event) => { setPage(1); setModality(event.target.value); }}>
-          <option value="">Todas las modalidades</option>
+        <select className={`${fieldClass} max-w-[220px]`} value={modality} onChange={(event) => { setPage(1); setModality(event.target.value); }}>
+          <option value="">Todos los tipos</option>
           <option value="recruitment">{MODALITY_LABELS.recruitment}</option>
           <option value="climate">{MODALITY_LABELS.climate}</option>
         </select>
@@ -60,51 +58,40 @@ export default function FormLibrary() {
           {Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </div>
-      {items === null ? <p className="text-sm text-muted">Cargando formularios…</p> : null}
-      {items !== null && items.length === 0 ? <div className={card}><Empty>No hay formularios con estos filtros.</Empty></div> : null}
-      <div className="space-y-3">
-        {items?.map((form) => (
-          <article key={form.id} className={`${card} flex flex-col gap-4 md:flex-row md:items-center md:justify-between`}>
-            <div>
-              <div className="flex flex-wrap gap-2">
-                <Pill>{MODALITY_LABELS[form.modality]}</Pill>
-                <StatusPill status={form.status} label={STATUS_LABELS[form.status]} />
-                {form.targetRole ? <Pill tone="gray">{form.targetRole}</Pill> : null}
-              </div>
-              <h2 className="mt-2 text-lg font-semibold">{form.title}</h2>
-              <p className="text-xs text-muted">{form.questionCount} preguntas · Actualizado {formatDateTime(form.updatedAt)}</p>
-              {form.links?.length ? (
-                <div className="mt-3 space-y-3">
-                  {form.links.map((link) => (
-                    <div key={link.id} className="flex items-center gap-3">
-                      <Image src={`/api/links/${link.id}/qr`} alt="Código QR" width={72} height={72} unoptimized className="h-[72px] w-[72px] shrink-0 rounded-[10px] border border-line bg-white p-1" />
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold">{link.areaName || "Enlace público"}{link.versionNumber ? ` · v${link.versionNumber}` : ""}</p>
-                        <p className="truncate text-xs text-muted">{link.url}</p>
-                        <div className="mt-1 flex flex-wrap gap-2">
-                          <button type="button" className="text-xs font-bold text-brand" onClick={async () => {
-                            try {
-                              await navigator.clipboard.writeText(link.url);
-                              setCopiedId(link.id);
-                            } catch {
-                              setError("No se pudo copiar el enlace.");
-                            }
-                          }}>{copiedId === link.id ? "Enlace copiado" : "Copiar enlace"}</button>
-                          <a className="text-xs font-bold text-brand" href={`/api/links/${link.id}/qr?download=1`}>Descargar QR</a>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link href={`/formularios/${form.id}${form.publishedVersion ? "?paso=publicar" : ""}`} className={btn}>{form.publishedVersion ? "Enlace y QR" : "Editar"}</Link>
-              {form.publishedVersion ? <Link href={`/formularios/${form.id}`} className={btn}>Editar</Link> : null}
-              <Link href={form.modality === "climate" ? `/clima?formId=${form.id}` : `/formularios/${form.id}/resultados`} className={btn}>Resultados</Link>
-            </div>
-          </article>
-        ))}
+      <div className={`${card} overflow-x-auto p-0`}>
+        {items === null ? <p className="px-5 py-8 text-sm text-muted">Cargando formularios…</p> : null}
+        {items !== null && items.length === 0 ? <Empty>No hay formularios con estos filtros.</Empty> : null}
+        {items?.length ? (
+          <table className="w-full min-w-[720px] text-left text-sm">
+            <thead className="bg-[#f7f9fc] text-xs text-muted">
+              <tr>
+                <th className="px-4 py-3 font-semibold">Formulario</th>
+                <th className="px-4 py-3 font-semibold">Tipo</th>
+                <th className="px-4 py-3 font-semibold">Estado</th>
+                <th className="px-4 py-3 font-semibold">Preguntas</th>
+                <th className="px-4 py-3 font-semibold">Actualizado</th>
+                <th className="px-4 py-3 font-semibold" />
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((form) => (
+                <tr key={form.id} className="border-t border-line hover:bg-[#f8faff]">
+                  <td className="px-4 py-3">
+                    <Link href={`/formularios/${form.id}`} className="font-semibold hover:text-brand">{form.title}</Link>
+                    {form.targetRole ? <p className="text-xs text-muted">{form.targetRole}</p> : null}
+                  </td>
+                  <td className="px-4 py-3 text-muted">{MODALITY_LABELS[form.modality]}</td>
+                  <td className="px-4 py-3"><StatusPill status={form.status} label={STATUS_LABELS[form.status]} /></td>
+                  <td className="px-4 py-3">{form.questionCount}</td>
+                  <td className="px-4 py-3 text-muted">{formatDateTime(form.updatedAt)}</td>
+                  <td className="px-4 py-3 text-right">
+                    <Link href={`/formularios/${form.id}`} className="font-bold text-brand">Abrir</Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
       </div>
       {total > 20 ? (
         <div className="mt-4 flex items-center gap-2 text-sm">

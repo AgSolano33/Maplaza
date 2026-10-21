@@ -1,6 +1,6 @@
-import FormEditor from "@/components/FormEditor";
+import FormDetail from "@/components/FormDetail";
 
-export default async function EditFormPage({ params }) {
+export default async function FormDetailPage({ params }) {
   const { id } = await params;
-  return <FormEditor formId={id} />;
+  return <FormDetail formId={id} />;
 }
