@@ -58,12 +58,14 @@ function ApplicationCard({ application, pending, onSave }) {
           <p className="text-xs text-muted">Versión {application.versionNumber} · {formatDateTime(application.submittedAt)}</p>
         </div>
         <div className="text-right">
+          <p className="text-xs font-semibold text-muted">Puntaje global</p>
           <div className="text-3xl font-bold">{formatScore(application.globalScore)}<span className="text-sm font-normal text-muted">{application.globalScore == null ? "" : "/100"}</span></div>
           <StatusPill status={application.reviewStatus} label={application.reviewLabel} />
         </div>
       </div>
       <div className="mt-4 space-y-3">
-        {application.competencies.length === 0 ? <p className="text-sm text-muted">Sin puntuación</p> : application.competencies.map((item) => (
+        <p className="text-xs font-semibold text-muted">Por competencia</p>
+        {application.competencies.length === 0 ? <p className="text-sm text-muted">Sin puntuación por competencia</p> : [...application.competencies].sort((a, b) => (b.scorePercent || 0) - (a.scorePercent || 0)).map((item) => (
           <div key={item.name}>
             <div className="mb-1 flex justify-between text-xs"><span>{item.name}</span><b>{item.scoreLabel}/100</b></div>
             <div className="h-2 overflow-hidden rounded-full bg-[#edf0f6]"><div className="h-full bg-brand" style={{ width: `${Math.round(item.scorePercent)}%` }} /></div>
@@ -75,7 +77,7 @@ function ApplicationCard({ application, pending, onSave }) {
         {application.answers.map((answer) => (
           <div key={answer.prompt} className="rounded-xl border border-line px-3 py-2 text-sm">
             <p className="font-bold">{answer.prompt}</p>
-            <p className="text-muted">{answer.value}{answer.points != null ? ` · ${answer.points}/5` : ""}{answer.competencyName ? ` · ${answer.competencyName}` : ""}</p>
+            <p className="text-muted">{answer.value}{answer.points != null ? ` · ${answer.points} pts` : ""}{answer.competencyName ? ` · ${answer.competencyName}` : ""}</p>
           </div>
         ))}
       </div>

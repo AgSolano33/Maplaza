@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MODALITY_LABELS, STATUS_LABELS } from "@/domain/constants";
 import { formatDateTime } from "@/domain/format";
@@ -9,7 +10,9 @@ import { btn, btnPrimary, card, fieldClass } from "./styles";
 import { Empty, ErrorNote, PageHeader, StatusPill } from "./ui";
 
 export default function FormLibrary() {
+  const router = useRouter();
   const [items, setItems] = useState(null);
+  const [starting, setStarting] = useState(false);
   const [modality, setModality] = useState("");
   const [status, setStatus] = useState("");
   const [q, setQ] = useState("");
@@ -37,6 +40,27 @@ export default function FormLibrary() {
     };
   }, [modality, page, q, status]);
 
+  async function startBlank(modality) {
+    setStarting(true);
+    setError("");
+    try {
+      const created = await api("/api/forms", {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Formulario sin título",
+          description: "",
+          modality,
+          targetRole: "",
+          questions: [{ type: "short_text", prompt: "", required: false }],
+        }),
+      });
+      router.push(`/formularios/${created.id}/editar?paso=preguntas`);
+    } catch (startError) {
+      setError(startError.message);
+      setStarting(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -46,6 +70,26 @@ export default function FormLibrary() {
         actions={<Link href="/formularios/nuevo" className={btnPrimary}>Nuevo formulario</Link>}
       />
       <ErrorNote>{error}</ErrorNote>
+      <section className="mb-6">
+        <h2 className="text-sm font-semibold">Iniciar un formulario nuevo</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <button type="button" disabled={starting} onClick={() => startBlank("climate")} className={`${card} p-4 text-left hover:border-brand disabled:opacity-60`}>
+            <span className="grid h-24 place-items-center rounded-[12px] bg-[#f4f7ff] text-3xl text-brand">+</span>
+            <span className="mt-3 block text-sm font-semibold">Formulario en blanco</span>
+            <span className="mt-1 block text-xs text-muted">Encuesta de área. El título y las preguntas se escriben en la siguiente pantalla.</span>
+          </button>
+          <button type="button" disabled={starting} onClick={() => startBlank("recruitment")} className={`${card} p-4 text-left hover:border-brand disabled:opacity-60`}>
+            <span className="grid h-24 place-items-center rounded-[12px] bg-[#f7f4ff] text-3xl text-[#5b4db7]">+</span>
+            <span className="mt-3 block text-sm font-semibold">Evaluación en blanco</span>
+            <span className="mt-1 block text-xs text-muted">Pide nombre y correo. La puntuación de cada pregunta es opcional.</span>
+          </button>
+          <Link href="/formularios/nuevo" className={`${card} p-4 hover:border-brand`}>
+            <span className="grid h-24 place-items-center rounded-[12px] bg-[#f7f9fc] text-sm font-semibold text-muted">Plantillas</span>
+            <span className="mt-3 block text-sm font-semibold">Empezar desde una plantilla</span>
+            <span className="mt-1 block text-xs text-muted">Evaluaciones y encuestas ya armadas para adaptar.</span>
+          </Link>
+        </div>
+      </section>
       <div className="mb-4 flex flex-wrap gap-2">
         <input className={`${fieldClass} max-w-xs`} placeholder="Buscar por título" value={q} onChange={(event) => { setPage(1); setQ(event.target.value); }} />
         <select className={`${fieldClass} max-w-[220px]`} value={modality} onChange={(event) => { setPage(1); setModality(event.target.value); }}>
@@ -77,7 +121,7 @@ export default function FormLibrary() {
               {items.map((form) => (
                 <tr key={form.id} className="border-t border-line hover:bg-[#f8faff]">
                   <td className="px-4 py-3">
-                    <Link href={`/formularios/${form.id}`} className="font-semibold hover:text-brand">{form.title}</Link>
+                    <Link href={`/formularios/${form.id}/editar`} className="font-semibold hover:text-brand">{form.title}</Link>
                     {form.targetRole ? <p className="text-xs text-muted">{form.targetRole}</p> : null}
                   </td>
                   <td className="px-4 py-3 text-muted">{MODALITY_LABELS[form.modality]}</td>
@@ -85,7 +129,7 @@ export default function FormLibrary() {
                   <td className="px-4 py-3">{form.questionCount}</td>
                   <td className="px-4 py-3 text-muted">{formatDateTime(form.updatedAt)}</td>
                   <td className="px-4 py-3 text-right">
-                    <Link href={`/formularios/${form.id}`} className="font-bold text-brand">Abrir</Link>
+                    <Link href={`/formularios/${form.id}/editar`} className="font-bold text-brand">Abrir</Link>
                   </td>
                 </tr>
               ))}

@@ -17,6 +17,7 @@ function serializeQuestion(question) {
     competencyId: question.competencyId ? String(question.competencyId) : "",
     competencyName: question.competencyName || "",
     scored: Boolean(question.scored),
+    shuffleOptions: Boolean(question.shuffleOptions),
     options: (question.options || []).map((option) => ({
       id: option.id,
       label: option.label || "",
@@ -33,6 +34,7 @@ function signature(data) {
     targetRole: data.targetRole || "",
     instructions: data.instructions || "",
     confirmationMessage: data.confirmationMessage || "",
+    showScore: Boolean(data.showScore),
     opensAt: data.opensAt ? new Date(data.opensAt).toISOString() : null,
     closesAt: data.closesAt ? new Date(data.closesAt).toISOString() : null,
     appearance: serializeAppearance(data.appearance),
@@ -53,6 +55,7 @@ export function serializeForm(form, extras = {}) {
     targetRole: form.targetRole || "",
     instructions: form.instructions || "",
     confirmationMessage: form.confirmationMessage || "",
+    showScore: Boolean(form.showScore),
     opensAt: form.opensAt,
     closesAt: form.closesAt,
     appearance: serializeAppearance(form.appearance),
@@ -73,6 +76,7 @@ function applyDraft(form, value) {
   form.targetRole = value.targetRole;
   form.instructions = value.instructions;
   form.confirmationMessage = value.confirmationMessage;
+  form.showScore = Boolean(value.showScore);
   form.opensAt = value.opensAt;
   form.closesAt = value.closesAt;
   form.questions = value.questions;
@@ -82,8 +86,16 @@ function applyDraft(form, value) {
 function serializeAppearance(appearance) {
   return {
     primaryColor: appearance?.primaryColor || "#315ce8",
+    backgroundColor: appearance?.backgroundColor || "#f5f7fb",
+    headerFont: appearance?.headerFont || "Roboto",
+    headerSize: appearance?.headerSize || 24,
+    questionFont: appearance?.questionFont || "Roboto",
+    questionSize: appearance?.questionSize || 12,
+    textFont: appearance?.textFont || "Roboto",
+    textSize: appearance?.textSize || 11,
     logo: appearance?.logo || "",
     cover: appearance?.cover || "",
+    poster: appearance?.poster || "",
   };
 }
 
@@ -191,13 +203,7 @@ export async function getForm(id, origin) {
   });
 }
 
-export async function updateForm(id, input) {
-  await connectDB();
-  const form = await Form.findById(id);
-  if (!form) throw new ApiError(404, "NOT_FOUND", "No se encontró el formulario.");
-  if (form.status === "archived") {
-    throw new ApiError(409, "ARCHIVED", "Restaura el formulario antes de editarlo.");
-  }
+async function saveDraft(form, input) {
   if (form.publishedVersion > 0 && input?.modality && input.modality !== form.modality) {
     throw new ApiError(409, "MODALITY_LOCKED", "La modalidad no puede cambiar después de publicar.");
   }
@@ -211,14 +217,42 @@ export async function updateForm(id, input) {
     form.hasUnpublishedChanges = true;
   }
   await form.save();
+}
+
+async function pointLinksAt(form, version, user) {
+  const existingLinks = await DistributionLink.countDocuments({ formId: form._id });
+  if (existingLinks === 0) {
+    return DistributionLink.create({
+      token: newToken(),
+      formId: form._id,
+      formVersionId: version._id,
+      areaId: null,
+      areaName: "",
+      acceptingResponses: true,
+      createdBy: user._id,
+    });
+  }
+  await DistributionLink.updateMany({ formId: form._id }, { $set: { formVersionId: version._id } });
+  return DistributionLink.findOne({ formId: form._id }).sort({ createdAt: 1 });
+}
+
+export async function updateForm(id, input) {
+  await connectDB();
+  const form = await Form.findById(id);
+  if (!form) throw new ApiError(404, "NOT_FOUND", "No se encontró el formulario.");
+  if (form.status === "archived") {
+    throw new ApiError(409, "ARCHIVED", "Restaura el formulario antes de editarlo.");
+  }
+  await saveDraft(form, input);
   return serializeForm(form);
 }
 
-export async function publishForm(user, id) {
+export async function publishForm(user, id, input) {
   await connectDB();
   const form = await Form.findById(id);
   if (!form) throw new ApiError(404, "NOT_FOUND", "No se encontró el formulario.");
   if (form.status === "archived") throw new ApiError(409, "ARCHIVED", "Restaura el formulario antes de publicar.");
+  if (input && typeof input === "object") await saveDraft(form, input);
   const parsed = normalizeDraft(
     {
       title: form.title,
@@ -227,6 +261,7 @@ export async function publishForm(user, id) {
       targetRole: form.targetRole,
       instructions: form.instructions,
       confirmationMessage: form.confirmationMessage,
+      showScore: form.showScore,
       opensAt: form.opensAt,
       closesAt: form.closesAt,
       appearance: serializeAppearance(form.appearance),
@@ -236,7 +271,19 @@ export async function publishForm(user, id) {
   );
   if (!parsed.ok) throw new ApiError(422, "VALIDATION", "El formulario todavía no se puede publicar.", parsed.errors);
   if (form.publishedVersion > 0 && !form.hasUnpublishedChanges) {
-    throw new ApiError(409, "NO_CHANGES", "No hay cambios nuevos para publicar. Los enlaces actuales siguen en su versión.");
+    const current = await FormVersion.findOne({ formId: form._id, versionNumber: form.publishedVersion });
+    const staleLinks = current
+      ? await DistributionLink.countDocuments({ formId: form._id, formVersionId: { $ne: current._id } })
+      : 0;
+    if (!current || staleLinks === 0) {
+      throw new ApiError(409, "NO_CHANGES", "No hay cambios nuevos para publicar.");
+    }
+    const link = await pointLinksAt(form, current, user);
+    return {
+      form: serializeForm(form),
+      version: { id: String(current._id), versionNumber: current.versionNumber },
+      link: link ? { id: String(link._id), token: link.token } : null,
+    };
   }
   const questions = await hydrateCompetencies(parsed.value.questions);
   applyDraft(form, { ...parsed.value, questions });
@@ -249,6 +296,7 @@ export async function publishForm(user, id) {
     targetRole: form.targetRole,
     instructions: form.instructions,
     confirmationMessage: form.confirmationMessage,
+    showScore: Boolean(form.showScore),
     opensAt: form.opensAt,
     closesAt: form.closesAt,
     appearance: serializeAppearance(form.appearance),
@@ -262,18 +310,7 @@ export async function publishForm(user, id) {
   form.hasUnpublishedChanges = false;
   await form.save();
 
-  let link = null;
-  if (version.versionNumber === 1) {
-    link = await DistributionLink.create({
-      token: newToken(),
-      formId: form._id,
-      formVersionId: version._id,
-      areaId: null,
-      areaName: "",
-      acceptingResponses: true,
-      createdBy: user._id,
-    });
-  }
+  const link = await pointLinksAt(form, version, user);
 
   return {
     form: serializeForm(form),
@@ -293,6 +330,7 @@ export async function duplicateForm(user, id) {
     targetRole: form.targetRole,
     instructions: form.instructions,
     confirmationMessage: form.confirmationMessage,
+    showScore: Boolean(form.showScore),
     opensAt: form.opensAt,
     closesAt: form.closesAt,
     appearance: serializeAppearance(form.appearance),

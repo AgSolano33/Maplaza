@@ -47,13 +47,21 @@ export async function getPublicForm(token) {
   return { available: true, form: toPublicForm(version) };
 }
 
-async function replay(Model, idempotencyKey, link, confirmationMessage) {
-  const existing = await Model.findOne({ idempotencyKey }).select("distributionLinkId");
+function respondentResult(version, globalScore, replay) {
+  const result = { ok: true, confirmationMessage: version.confirmationMessage, replay };
+  if (version.modality === "recruitment" && version.showScore === true && typeof globalScore === "number" && !Number.isNaN(globalScore)) {
+    result.score = Math.round(globalScore);
+  }
+  return result;
+}
+
+async function replay(Model, idempotencyKey, link, version) {
+  const existing = await Model.findOne({ idempotencyKey }).select("distributionLinkId scoring");
   if (!existing) return null;
   if (String(existing.distributionLinkId) !== String(link._id)) {
     throw new ApiError(409, "IDEMPOTENCY_CONFLICT", "La clave de idempotencia ya se usó en otra solicitud.");
   }
-  return { ok: true, confirmationMessage, replay: true };
+  return respondentResult(version, existing.scoring?.globalScore, true);
 }
 
 export async function submitPublicResponse({ token, body, idempotencyKey }) {
@@ -70,7 +78,7 @@ export async function submitPublicResponse({ token, body, idempotencyKey }) {
   if (!parsed.ok) throw new ApiError(422, "VALIDATION", "Revisa las respuestas.", parsed.errors);
 
   if (version.modality === "climate") {
-    const previous = await replay(AnonymousResponse, key, link, version.confirmationMessage);
+    const previous = await replay(AnonymousResponse, key, link, version);
     if (previous) return previous;
     try {
       await AnonymousResponse.create({
@@ -85,15 +93,15 @@ export async function submitPublicResponse({ token, body, idempotencyKey }) {
       });
     } catch (error) {
       if (isDuplicateKey(error, "idempotencyKey")) {
-        const again = await replay(AnonymousResponse, key, link, version.confirmationMessage);
+        const again = await replay(AnonymousResponse, key, link, version);
         if (again) return again;
       }
       throw error;
     }
-    return { ok: true, confirmationMessage: version.confirmationMessage, replay: false };
+    return respondentResult(version, null, false);
   }
 
-  const previous = await replay(Application, key, link, version.confirmationMessage);
+  const previous = await replay(Application, key, link, version);
   if (previous) return previous;
 
   let candidate = await Candidate.findOne({ email: parsed.value.email });
@@ -128,11 +136,11 @@ export async function submitPublicResponse({ token, body, idempotencyKey }) {
     });
   } catch (error) {
     if (isDuplicateKey(error, "idempotencyKey")) {
-      const again = await replay(Application, key, link, version.confirmationMessage);
+      const again = await replay(Application, key, link, version);
       if (again) return again;
     }
     throw error;
   }
 
-  return { ok: true, confirmationMessage: version.confirmationMessage, replay: false };
+  return respondentResult(version, scoring.globalScore, false);
 }

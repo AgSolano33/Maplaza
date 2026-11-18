@@ -10,6 +10,7 @@ const formSchema = new mongoose.Schema(
     targetRole: { type: String, default: "" },
     instructions: { type: String, default: "" },
     confirmationMessage: { type: String, default: "" },
+    showScore: { type: Boolean, default: false },
     opensAt: { type: Date, default: null },
     closesAt: { type: Date, default: null },
     status: {

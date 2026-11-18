@@ -1,4 +1,6 @@
 import { DEFAULT_SCALE_LABELS, LIMITS, QUESTION_TYPES } from "./constants.js";
+import { normalizeTextStyle } from "./theme.js";
+import { isCloudinaryImage, matchesCloudinaryAccount, storedImage } from "./images.js";
 import { fieldError, storedFieldText } from "./fields.js";
 import { isObjectId, isStableId, newId } from "./ids.js";
 
@@ -66,6 +68,7 @@ export function normalizeDraft(input, { strict = false } = {}) {
         (modality === "climate"
           ? "Gracias por responder. Tu participación es anónima y no se asocia a tu identidad."
           : "Recibimos tu evaluación. El equipo de RH la revisará. Esta respuesta no determina por sí sola una contratación."),
+      showScore: modality === "recruitment" && source.showScore === true,
       opensAt,
       closesAt,
       questions,
@@ -82,21 +85,33 @@ function normalizeAppearance(raw, errors) {
   } else {
     errors.primaryColor = "Usa un color como #315ce8.";
   }
+  let backgroundColor = "#f5f7fb";
+  if (!source.backgroundColor || /^#[0-9a-fA-F]{6}$/.test(source.backgroundColor)) {
+    backgroundColor = source.backgroundColor || "#f5f7fb";
+  } else {
+    errors.backgroundColor = "Usa un color de fondo como #f5f7fb.";
+  }
   return {
     primaryColor,
+    backgroundColor,
+    ...normalizeTextStyle(source),
     logo: imageData(source.logo, 450_000, "logo", errors),
     cover: imageData(source.cover, 900_000, "cover", errors),
+    poster: imageData(source.poster, 900_000, "poster", errors),
   };
 }
 
 function imageData(value, max, field, errors) {
-  const text = String(value || "");
+  const text = String(value || "").trim();
   if (!text) return "";
-  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(text) || text.length > max) {
-    errors[field] = "Usa una imagen PNG o JPG más pequeña.";
+  const cloud = process.env.cloudinary_name || "";
+  if (isCloudinaryImage(text) && (!cloud || matchesCloudinaryAccount(text, cloud))) return text;
+  const stored = storedImage(text, max);
+  if (!stored || stored.startsWith("https://")) {
+    errors[field] = "Usa una imagen PNG o JPG.";
     return "";
   }
-  return text;
+  return stored;
 }
 
 function parseDate(value) {
@@ -122,7 +137,7 @@ function normalizeQuestion(raw, { strict, modality, index, errors, seenQuestions
   if (seenQuestions.has(id)) id = newId();
   seenQuestions.add(id);
 
-  const scorable = modality === "recruitment" && type === "single" && (raw.scored === true || isObjectId(raw.competencyId));
+  const scorable = type === "single" && (raw.scored === true || isObjectId(raw.competencyId));
   const required = scorable ? true : Boolean(raw.required);
   const question = {
     id,
@@ -132,6 +147,7 @@ function normalizeQuestion(raw, { strict, modality, index, errors, seenQuestions
     competencyId: null,
     competencyName: "",
     scored: scorable,
+    shuffleOptions: (type === "single" || type === "dropdown" || type === "multiple") && raw.shuffleOptions === true,
     options: [],
     scaleLabels: [],
   };
@@ -151,16 +167,16 @@ function normalizeQuestion(raw, { strict, modality, index, errors, seenQuestions
       const normalized = { id: optionId, label };
       if (scorable) {
         const score = Number(option?.score);
-        if (!Number.isInteger(score) || score < 0 || score > 5) {
-          errors[`questions.${index}.score`] = "Cada opción puntuable vale entre 0 y 5.";
+        if (!Number.isInteger(score) || score < 0 || score > LIMITS.optionScore) {
+          errors[`questions.${index}.score`] = `Cada opción puntuable vale entre 0 y ${LIMITS.optionScore}.`;
         }
-        normalized.score = Number.isInteger(score) ? Math.min(5, Math.max(0, score)) : 0;
+        normalized.score = Number.isInteger(score) ? Math.min(LIMITS.optionScore, Math.max(0, score)) : 0;
       }
       question.options.push(normalized);
     }
     if (scorable) {
       if (!isObjectId(raw.competencyId)) {
-        if (strict) errors[`questions.${index}.competencyId`] = "Asocia la pregunta a una competencia.";
+        if (strict) errors[`questions.${index}.competencyId`] = "Elige una competencia. Es obligatoria para calcular el puntaje.";
       } else {
         question.competencyId = raw.competencyId;
       }

@@ -86,6 +86,7 @@ export const LIMITS = {
   role: 140,
   prompt: 1000,
   option: 300,
+  optionScore: 9999,
   scaleLabel: 80,
   short: 300,
   long: 4000,

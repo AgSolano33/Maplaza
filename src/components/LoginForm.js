@@ -21,8 +21,10 @@ export default function LoginForm() {
   const [error, setError] = useState("");
   const [needsSetup, setNeedsSetup] = useState(false);
   const [pending, setPending] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    setReady(true);
     api("/api/setup").then((data) => setNeedsSetup(data.needsSetup)).catch(() => {});
   }, []);
 
@@ -45,14 +47,22 @@ export default function LoginForm() {
       <p className="text-sm font-black tracking-[0.18em] text-brand">MAPLASA</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">Iniciar sesión</h1>
       <p className="mt-2 text-sm text-muted">Acceso para el equipo de RH. Quien responde un formulario no necesita cuenta.</p>
-      <form onSubmit={onSubmit} className={`${card} mt-6 space-y-4`}>
+      <form onSubmit={onSubmit} className={`${card} mt-6 space-y-4`} suppressHydrationWarning>
         <label className="block space-y-1.5">
           <span className={labelClass}>Correo</span>
-          <input className={fieldClass} type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" />
+          {ready ? (
+            <input className={fieldClass} type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" />
+          ) : (
+            <div className={fieldClass} aria-hidden="true">&nbsp;</div>
+          )}
         </label>
         <label className="block space-y-1.5">
           <span className={labelClass}>Contraseña</span>
-          <input className={fieldClass} type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
+          {ready ? (
+            <input className={fieldClass} type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
+          ) : (
+            <div className={fieldClass} aria-hidden="true">&nbsp;</div>
+          )}
         </label>
         <FieldError>{error}</FieldError>
         <button className={`${btnPrimary} w-full`} disabled={pending}>{pending ? "Entrando…" : "Entrar"}</button>

@@ -7,7 +7,8 @@ import { MODALITY_LABELS, STATUS_LABELS } from "@/domain/constants";
 import { formatDateTime } from "@/domain/format";
 import { api } from "@/lib/client";
 import { btn, btnPrimary, card } from "./styles";
-import { Empty, ErrorNote, StatusPill } from "./ui";
+import { ErrorNote, StatusPill } from "./ui";
+import ResponseReview from "./ResponseReview";
 
 export default function FormDetail({ formId }) {
   const [form, setForm] = useState(null);
@@ -64,6 +65,7 @@ export default function FormDetail({ formId }) {
               <Info label="Cierre" value={form.closesAt ? formatDateTime(form.closesAt) : "Sin fecha"} />
               <Info label="Identificación" value={recruitment ? "Pide nombre y correo" : "Anónima"} />
               {form.confirmationMessage ? <Info label="Mensaje al terminar" value={form.confirmationMessage} wide /> : null}
+              {recruitment ? <Info label="Puntaje al terminar" value={form.showScore ? "La persona lo ve" : "Solo el mensaje"} /> : null}
             </dl>
             {form.questions?.length ? (
               <ol className="mt-5 space-y-2 border-t border-line pt-4">
@@ -77,46 +79,8 @@ export default function FormDetail({ formId }) {
             ) : <p className="mt-4 text-sm text-muted">Este formulario todavía no tiene preguntas.</p>}
           </section>
 
-          <section id="respuestas" className={`${card} p-0`}>
-            <div className="border-b border-line px-5 py-4">
-              <h2 className="text-base font-semibold">Respuestas</h2>
-              <p className="mt-1 text-sm text-muted">
-                {responses === null
-                  ? "Cargando respuestas…"
-                  : items.length
-                    ? `${responses.total} ${responses.total === 1 ? "envío" : "envíos"}. Abre cada fila para ver lo que contestaron.`
-                    : "Todavía no hay respuestas."}
-              </p>
-            </div>
-            {responses && items.length === 0 ? <Empty>Cuando alguien envíe el formulario, aparecerá aquí.</Empty> : null}
-            {items.map((item) => (
-              <details key={item.id} className="group border-b border-line last:border-b-0">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-3.5 [&::-webkit-details-marker]:hidden">
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold">{item.anonymous ? "Respuesta anónima" : item.name || "Sin nombre"}</span>
-                    <span className="mt-0.5 block truncate text-xs text-muted">
-                      {formatDateTime(item.submittedAt)}
-                      {item.email ? ` · ${item.email}` : ""}
-                      {item.areaName ? ` · ${item.areaName}` : ""}
-                      {item.versionNumber ? ` · v${item.versionNumber}` : ""}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-xs font-bold text-brand group-open:hidden">Ver</span>
-                  <span className="hidden shrink-0 text-xs font-bold text-muted group-open:inline">Ocultar</span>
-                </summary>
-                <dl className="space-y-3 px-5 pb-4">
-                  {item.answers.map((answer, index) => (
-                    <div key={`${item.id}-${index}`}>
-                      <dt className="text-sm font-semibold">{answer.prompt}</dt>
-                      <dd className="mt-0.5 text-sm leading-6 text-ink">{answer.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </details>
-            ))}
-            {responses && responses.total > items.length ? (
-              <p className="px-5 py-3 text-xs text-muted">Se muestran las {items.length} respuestas más recientes.</p>
-            ) : null}
+          <section id="respuestas">
+            {responses === null ? <p className="text-sm text-muted">Cargando respuestas…</p> : <ResponseReview items={items} total={responses.total || 0} />}
           </section>
         </div>
 

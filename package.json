@@ -18,7 +18,8 @@
     "next-auth": "^5.0.0-beta.32",
     "qrcode": "^1.5.4",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "react-easy-crop": "^6.2.5"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",

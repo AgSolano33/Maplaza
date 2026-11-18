@@ -1,6 +1,8 @@
 import { DEFAULT_SCALE_LABELS } from "./constants.js";
+import { normalizeTextStyle } from "./theme.js";
+import { storedImage } from "./images.js";
 
-const PUBLIC_QUESTION_KEYS = ["id", "type", "prompt", "required", "options", "scaleLabels"];
+const PUBLIC_QUESTION_KEYS = ["id", "type", "prompt", "required", "shuffleOptions", "options", "scaleLabels"];
 
 export function toPublicForm(source) {
   const modality = source?.modality === "climate" ? "climate" : "recruitment";
@@ -13,8 +15,11 @@ export function toPublicForm(source) {
     requiresIdentity: modality === "recruitment",
     appearance: {
       primaryColor: /^#[0-9a-fA-F]{6}$/.test(source?.appearance?.primaryColor || "") ? source.appearance.primaryColor : "#315ce8",
+      backgroundColor: /^#[0-9a-fA-F]{6}$/.test(source?.appearance?.backgroundColor || "") ? source.appearance.backgroundColor : "#f5f7fb",
+      ...normalizeTextStyle(source?.appearance),
       logo: imageSource(source?.appearance?.logo),
       cover: imageSource(source?.appearance?.cover),
+      poster: imageSource(source?.appearance?.poster),
     },
     questions: (source?.questions || []).map((question) => {
       const type = question.type;
@@ -23,6 +28,7 @@ export function toPublicForm(source) {
         type,
         prompt: question.prompt || "",
         required: Boolean(question.required),
+        shuffleOptions: Boolean(question.shuffleOptions),
         options:
           type === "single" || type === "dropdown" || type === "multiple"
             ? (question.options || []).map((option) => ({
@@ -40,9 +46,7 @@ export function toPublicForm(source) {
 }
 
 function imageSource(value) {
-  const text = String(value || "");
-  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(text)) return "";
-  return text;
+  return storedImage(value, 900_000);
 }
 
 function normalizeScaleLabels(labels) {

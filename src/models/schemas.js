@@ -1,11 +1,11 @@
 import mongoose from "mongoose";
-import { QUESTION_TYPES } from "../domain/constants.js";
+import { LIMITS, QUESTION_TYPES } from "../domain/constants.js";
 
 const optionSchema = new mongoose.Schema(
   {
     id: { type: String, required: true },
     label: { type: String, default: "" },
-    score: { type: Number, min: 0, max: 5 },
+    score: { type: Number, min: 0, max: LIMITS.optionScore },
   },
   { _id: false },
 );
@@ -23,6 +23,7 @@ export const questionSchema = new mongoose.Schema(
     competencyId: { type: mongoose.Schema.Types.ObjectId, default: null },
     competencyName: { type: String, default: "" },
     scored: { type: Boolean, default: false },
+    shuffleOptions: { type: Boolean, default: false },
     options: { type: [optionSchema], default: [] },
     scaleLabels: { type: [String], default: [] },
   },
@@ -32,8 +33,16 @@ export const questionSchema = new mongoose.Schema(
 export const appearanceSchema = new mongoose.Schema(
   {
     primaryColor: { type: String, default: "#315ce8" },
+    backgroundColor: { type: String, default: "#f5f7fb" },
+    headerFont: { type: String, default: "Roboto" },
+    headerSize: { type: Number, default: 24 },
+    questionFont: { type: String, default: "Roboto" },
+    questionSize: { type: Number, default: 12 },
+    textFont: { type: String, default: "Roboto" },
+    textSize: { type: Number, default: 11 },
     logo: { type: String, default: "" },
     cover: { type: String, default: "" },
+    poster: { type: String, default: "" },
   },
   { _id: false },
 );

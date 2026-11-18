@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { LIMITS, QUESTION_LABELS } from "@/domain/constants";
+import { orderedOptions, shuffleOrder } from "@/domain/options";
+import { textStyle } from "@/domain/theme";
 import { fieldError, isLockedField, restrictInput } from "@/domain/fields";
 import { fieldLg } from "./styles";
 import { FieldError } from "./ui";
@@ -23,7 +25,11 @@ function kindLabel(question, modality) {
 
 export default function PublicSurvey({ token, initial, embedded = false }) {
   const form = initial?.form;
-  const questions = useMemo(() => form?.questions || [], [form]);
+  const [optionOrder] = useState(() => shuffleOrder(form?.questions || []));
+  const questions = useMemo(
+    () => (form?.questions || []).map((question) => ({ ...question, options: orderedOptions(question, optionOrder[question.id]) })),
+    [form, optionOrder],
+  );
   const steps = useMemo(() => {
     const items = [];
     if (form?.requiresIdentity) items.push({ kind: "identity" });
@@ -36,7 +42,8 @@ export default function PublicSurvey({ token, initial, embedded = false }) {
   const [errors, setErrors] = useState({});
   const [stepMessage, setStepMessage] = useState("");
   const [pending, setPending] = useState(false);
-  const [done, setDone] = useState("");
+  const [done, setDone] = useState(null);
+  const [started, setStarted] = useState(false);
   const [formError, setFormError] = useState("");
   const step = steps[Math.min(stepIndex, Math.max(steps.length - 1, 0))] || null;
   const progress = steps.length ? Math.round(((stepIndex + 1) / steps.length) * 100) : 0;
@@ -50,12 +57,32 @@ export default function PublicSurvey({ token, initial, embedded = false }) {
     );
   }
 
+  if (!started && !done) {
+    const introFace = textStyle(form.appearance);
+    const introColor = form.appearance?.primaryColor || "#315ce8";
+    return (
+      <Shell embedded={embedded} color={introColor} background={form.appearance?.backgroundColor} logo={form.appearance?.logo} poster={form.appearance?.poster}>
+        <h1 className="text-center font-semibold leading-tight text-[#17233b]" style={introFace.header}>{form.title}</h1>
+        {form.description ? <p className="mx-auto mt-3 max-w-lg text-center leading-7 text-muted" style={introFace.text}>{form.description}</p> : null}
+        <div className="mt-6 text-center">
+          <button type="button" className="rounded-[10px] px-5 py-2.5 text-sm font-bold text-white" style={{ background: introColor }} onClick={() => setStarted(true)}>Iniciar cuestionario</button>
+        </div>
+      </Shell>
+    );
+  }
+
   if (done) {
     return (
       <Shell embedded={embedded}>
         <p className="text-xs font-bold tracking-[0.16em] text-brand uppercase">Respuesta recibida</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">{form.title}</h1>
-        <p className="mt-4 text-base leading-7">{done}</p>
+        <p className="mt-4 text-base leading-7">{done.message}</p>
+        {Number.isInteger(done.score) ? (
+          <p className="mt-6 text-center">
+            <span className="block text-xs font-bold tracking-[0.14em] text-muted uppercase">Tu resultado</span>
+            <span className="mt-1 block text-4xl font-semibold">{done.score}<span className="text-base font-normal text-muted">/100</span></span>
+          </p>
+        ) : null}
       </Shell>
     );
   }
@@ -98,7 +125,7 @@ export default function PublicSurvey({ token, initial, embedded = false }) {
 
   async function submit() {
     if (embedded) {
-      setDone(form.confirmationMessage || "Vista previa. Esta respuesta no se guardó.");
+      setDone({ message: form.confirmationMessage || "Vista previa. Esta respuesta no se guardó." });
       return;
     }
     for (let index = 0; index < steps.length; index += 1) {
@@ -141,7 +168,10 @@ export default function PublicSurvey({ token, initial, embedded = false }) {
         return;
       }
       sessionStorage.removeItem(storageKey);
-      setDone(data.confirmationMessage || form.confirmationMessage || "Recibimos tu respuesta.");
+      setDone({
+        message: data.confirmationMessage || form.confirmationMessage || "Recibimos tu respuesta.",
+        score: Number.isInteger(data.score) ? data.score : null,
+      });
     } catch {
       setFormError("No se pudo enviar. Puedes intentar de nuevo; no se duplicará esta solicitud.");
     } finally {
@@ -151,14 +181,16 @@ export default function PublicSurvey({ token, initial, embedded = false }) {
 
   const last = stepIndex >= steps.length - 1;
   const color = form.appearance?.primaryColor || "#315ce8";
-  const subtitle = form.modality === "climate"
-    ? "Encuesta anónima. No pedimos nombre ni correo."
-    : (form.description || "Responde según cómo actuarías en cada situación.");
+  const typeface = textStyle(form.appearance);
+  const subtitle = form.instructions
+    || (form.modality === "climate"
+      ? "Encuesta anónima. No pedimos nombre ni correo."
+      : "Responde según cómo actuarías en cada situación.");
 
   return (
-    <Shell embedded={embedded} color={color} logo={form.appearance?.logo} cover={form.appearance?.cover}>
-      <h1 className="text-center text-2xl font-semibold tracking-tight text-[#17233b] md:text-[28px]">{form.title}</h1>
-      <p className="mx-auto mt-2 max-w-lg text-center text-sm leading-6 text-muted">{form.instructions || subtitle}</p>
+    <Shell embedded={embedded} color={color} background={form.appearance?.backgroundColor} logo={form.appearance?.logo} cover={form.appearance?.cover}>
+      <h1 className="text-center font-semibold leading-tight text-[#17233b]" style={typeface.header}>{form.title}</h1>
+      <p className="mx-auto mt-2 max-w-lg text-center leading-6 text-muted" style={typeface.text}>{subtitle}</p>
       <div className="mt-5 flex items-center gap-3">
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e6ebf3]">
           <div className="h-full rounded-full" style={{ width: `${Math.max(progress, steps.length ? 8 : 0)}%`, background: color }} />
@@ -190,6 +222,7 @@ export default function PublicSurvey({ token, initial, embedded = false }) {
             question={step.question}
             number={step.index + 1}
             modality={form.modality}
+            typeface={typeface}
             value={answers[step.question.id]}
             onChange={(value) => setAnswer(step.question.id, value)}
           />
@@ -222,7 +255,7 @@ export default function PublicSurvey({ token, initial, embedded = false }) {
   );
 }
 
-function QuestionCard({ question, number, modality, value, onChange }) {
+function QuestionCard({ question, number, modality, typeface, value, onChange }) {
   const max = question.type === "long_text" ? LIMITS.long : LIMITS.short;
   return (
     <section className="rounded-[16px] border border-line p-5">
@@ -231,7 +264,7 @@ function QuestionCard({ question, number, modality, value, onChange }) {
         {kindLabel(question, modality)}
         {question.required ? null : <span className="text-xs">· Opcional</span>}
       </div>
-      <h2 className="mt-3 text-lg font-semibold leading-7">{question.prompt}</h2>
+      <h2 className="mt-3 font-semibold leading-7" style={typeface?.question}>{question.prompt}</h2>
       <div className="mt-4">
         {question.type === "single" || question.type === "multiple" ? (
           <div className="space-y-2">
@@ -240,7 +273,7 @@ function QuestionCard({ question, number, modality, value, onChange }) {
                 ? (value?.optionIds || []).includes(option.id)
                 : value?.optionId === option.id;
               return (
-                <label key={option.id} className={`flex cursor-pointer items-start gap-3 rounded-[12px] border px-3 py-3 text-sm ${selected ? "border-[#8eafff] bg-[#f5f8ff]" : "border-[#e6ebf3]"}`}>
+                <label key={option.id} className={`flex cursor-pointer items-start gap-3 rounded-[12px] border px-3 py-3 ${selected ? "border-[#8eafff] bg-[#f5f8ff]" : "border-[#e6ebf3]"}`} style={typeface?.text}>
                   <input
                     type={question.type === "multiple" ? "checkbox" : "radio"}
                     className="mt-0.5 accent-brand"
@@ -265,7 +298,7 @@ function QuestionCard({ question, number, modality, value, onChange }) {
           </div>
         ) : null}
         {question.type === "dropdown" ? (
-          <select className={fieldLg} value={value?.optionId || ""} onChange={(event) => onChange(event.target.value ? { optionId: event.target.value } : {})}>
+          <select className={fieldLg} style={typeface?.text} value={value?.optionId || ""} onChange={(event) => onChange(event.target.value ? { optionId: event.target.value } : {})}>
             <option value="">Selecciona una opción</option>
             {question.options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
           </select>
@@ -275,7 +308,7 @@ function QuestionCard({ question, number, modality, value, onChange }) {
             {[["sí", "Sí"], ["no", "No"]].map(([answer, label]) => {
               const selected = value?.text === answer;
               return (
-                <label key={answer} className={`cursor-pointer rounded-[12px] border px-3 py-4 text-center text-sm font-semibold ${selected ? "border-[#8eafff] bg-[#f5f8ff]" : "border-[#e6ebf3]"}`}>
+                <label key={answer} className={`cursor-pointer rounded-[12px] border px-3 py-4 text-center font-semibold ${selected ? "border-[#8eafff] bg-[#f5f8ff]" : "border-[#e6ebf3]"}`} style={typeface?.text}>
                   <input type="radio" className="sr-only" name={question.id} checked={selected} onChange={() => onChange({ text: answer })} />
                   {label}
                 </label>
@@ -302,26 +335,26 @@ function QuestionCard({ question, number, modality, value, onChange }) {
                 <label key={`${scaleValue}-${label}`} className={`cursor-pointer rounded-[12px] border px-2 py-3 text-center ${selected ? "border-[#8eafff] bg-[#f5f8ff]" : "border-[#e6ebf3]"}`}>
                   <input type="radio" className="sr-only" name={question.id} checked={selected} onChange={() => onChange({ scaleValue })} />
                   <span className="block text-base font-bold text-brand">{scaleValue}</span>
-                  <span className="mt-1 block text-[11px] leading-4 text-muted">{label}</span>
+                  <span className="mt-1 block leading-4 text-muted" style={typeface?.text}>{label}</span>
                 </label>
               );
             })}
           </div>
         ) : null}
         {question.type === "long_text" || question.type === "short_text" || isLockedField(question.type) ? (
-          <LockedOrText question={question} max={max} value={value} onChange={onChange} />
+          <LockedOrText question={question} max={max} value={value} onChange={onChange} typeface={typeface} />
         ) : null}
       </div>
     </section>
   );
 }
 
-function LockedOrText({ question, max, value, onChange }) {
+function LockedOrText({ question, max, value, onChange, typeface }) {
   const text = value?.text || "";
   if (question.type === "long_text") {
     return (
       <div>
-        <textarea className={`${fieldLg} min-h-28`} maxLength={max} placeholder="Escribe tu respuesta aquí…" value={text} onChange={(event) => onChange({ text: event.target.value })} />
+        <textarea className={`${fieldLg} min-h-28`} style={typeface?.text} maxLength={max} placeholder="Escribe tu respuesta aquí…" value={text} onChange={(event) => onChange({ text: event.target.value })} />
         <p className="mt-1 text-right text-xs text-muted">{text.length}/{max}</p>
       </div>
     );
@@ -332,6 +365,7 @@ function LockedOrText({ question, max, value, onChange }) {
       <div>
         <input
           className={fieldLg}
+          style={typeface?.text}
           type={inputType}
           inputMode={question.type === "phone" ? "tel" : question.type === "number" ? "decimal" : question.type === "email" ? "email" : question.type === "url" ? "url" : undefined}
           placeholder={FIELD_PLACEHOLDERS[question.type]}
@@ -344,7 +378,7 @@ function LockedOrText({ question, max, value, onChange }) {
   }
   return (
     <div>
-      <input className={fieldLg} maxLength={max} placeholder="Escribe tu respuesta" value={text} onChange={(event) => onChange({ text: event.target.value })} />
+      <input className={fieldLg} style={typeface?.text} maxLength={max} placeholder="Escribe tu respuesta" value={text} onChange={(event) => onChange({ text: event.target.value })} />
       <p className="mt-1 text-right text-xs text-muted">{text.length}/{max}</p>
     </div>
   );
@@ -385,19 +419,23 @@ function Brand({ color = "#315ce8", logo = "" }) {
   );
 }
 
-function Shell({ embedded, color = "#315ce8", logo = "", cover = "", children }) {
+function Shell({ embedded, color = "#315ce8", background = "#f5f7fb", logo = "", cover = "", poster = "", children }) {
+  const page = /^#[0-9a-fA-F]{6}$/.test(background || "") ? background : "#f5f7fb";
   const body = (
     <>
       <Brand color={color} logo={logo} />
       <div className="overflow-hidden rounded-[22px] border border-white bg-white shadow-[0_10px_40px_rgba(38,61,100,0.06)]">
-        {cover ? (
+        {poster ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={cover} alt="" className="h-36 w-full object-cover" />
+          <img src={poster} alt="" className="aspect-video w-full object-cover" />
+        ) : cover ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={cover} alt="" className="aspect-[4/1] w-full object-cover" />
         ) : null}
         <div className="px-5 py-7 md:px-8 md:py-8">{children}</div>
       </div>
     </>
   );
-  if (embedded) return <div className="mx-auto max-w-3xl">{body}</div>;
-  return <main className="mx-auto min-h-screen max-w-3xl bg-canvas px-4 py-8 md:py-12">{body}</main>;
+  if (embedded) return <div className="mx-auto max-w-3xl rounded-[22px] px-4 py-6" style={{ background: page }}>{body}</div>;
+  return <main className="min-h-screen px-4 py-8 md:py-12" style={{ background: page }}><div className="mx-auto max-w-3xl">{body}</div></main>;
 }
