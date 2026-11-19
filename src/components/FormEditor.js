@@ -843,7 +843,6 @@ function IssuePanel({ fields, questions, onJump }) {
     <aside className="shrink-0 rounded-[12px] border border-[#ffd0d0] bg-white shadow-[0_1px_2px_rgba(38,61,100,0.06),0_8px_24px_rgba(38,61,100,0.06)]">
       <div className="border-b border-[#ffd0d0] px-4 py-3">
         <h2 className="text-base font-semibold text-[#9b3b3b]">Para publicar</h2>
-        <p className="mt-1 text-sm leading-5 text-[#9b3b3b]">Estos puntos siguen pendientes. Al corregirlos, desaparecen.</p>
       </div>
       {entries.length ? (
         <ul className="max-h-[50vh] space-y-1 overflow-y-auto p-2">

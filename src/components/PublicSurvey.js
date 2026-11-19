@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { LIMITS, QUESTION_LABELS } from "@/domain/constants";
+import { LIMITS } from "@/domain/constants";
 import { orderedOptions, shuffleOrder } from "@/domain/options";
 import { textStyle } from "@/domain/theme";
 import { fieldError, isLockedField, restrictInput } from "@/domain/fields";
@@ -15,12 +15,6 @@ function answered(question, value) {
   if (question.type === "scale" || question.type === "rating") return Number.isInteger(value.scaleValue) && value.scaleValue >= 1 && value.scaleValue <= 5;
   if (question.type === "yes_no") return value.text === "sí" || value.text === "no";
   return Boolean(String(value.text || "").trim());
-}
-
-function kindLabel(question, modality) {
-  if (question.type === "single") return modality === "recruitment" ? "Situación" : "Opción única";
-  if (question.type === "long_text") return "Pregunta abierta";
-  return QUESTION_LABELS[question.type] || "Pregunta";
 }
 
 export default function PublicSurvey({ token, initial, embedded = false }) {
@@ -72,11 +66,12 @@ export default function PublicSurvey({ token, initial, embedded = false }) {
   }
 
   if (done) {
+    const doneColor = form.appearance?.primaryColor || "#315ce8";
+    const doneFace = textStyle(form.appearance);
     return (
-      <Shell embedded={embedded}>
-        <p className="text-xs font-bold tracking-[0.16em] text-brand uppercase">Respuesta recibida</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">{form.title}</h1>
-        <p className="mt-4 text-base leading-7">{done.message}</p>
+      <Shell embedded={embedded} color={doneColor} background={form.appearance?.backgroundColor} logo={form.appearance?.logo} cover={form.appearance?.cover}>
+        <h1 className="text-center font-semibold leading-tight text-[#17233b]" style={{ ...doneFace.header, fontSize: "36px" }}>{form.title}</h1>
+        <p className="mx-auto mt-5 max-w-lg text-center leading-7 text-[#17233b]" style={{ ...doneFace.text, fontSize: "16px" }}>{done.message}</p>
         {Number.isInteger(done.score) ? (
           <p className="mt-6 text-center">
             <span className="block text-xs font-bold tracking-[0.14em] text-muted uppercase">Tu resultado</span>
@@ -221,7 +216,6 @@ export default function PublicSurvey({ token, initial, embedded = false }) {
           <QuestionCard
             question={step.question}
             number={step.index + 1}
-            modality={form.modality}
             typeface={typeface}
             value={answers[step.question.id]}
             onChange={(value) => setAnswer(step.question.id, value)}
@@ -255,16 +249,17 @@ export default function PublicSurvey({ token, initial, embedded = false }) {
   );
 }
 
-function QuestionCard({ question, number, modality, typeface, value, onChange }) {
+function QuestionCard({ question, number, typeface, value, onChange }) {
   const max = question.type === "long_text" ? LIMITS.long : LIMITS.short;
   return (
     <section className="rounded-[16px] border border-line p-5">
-      <div className="flex items-center gap-2 text-sm text-muted">
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-[#eaf1ff] text-sm font-bold text-brand">{number}</span>
-        {kindLabel(question, modality)}
-        {question.required ? null : <span className="text-xs">· Opcional</span>}
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#eaf1ff] text-sm font-bold text-brand">{number}</span>
+        <h2 className="min-w-0 font-semibold leading-7" style={typeface?.question}>
+          {question.prompt}
+          {question.required ? null : <span className="ml-2 text-xs font-normal text-muted">Opcional</span>}
+        </h2>
       </div>
-      <h2 className="mt-3 font-semibold leading-7" style={typeface?.question}>{question.prompt}</h2>
       <div className="mt-4">
         {question.type === "single" || question.type === "multiple" ? (
           <div className="space-y-2">
